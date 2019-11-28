@@ -7,10 +7,7 @@ import "../math/SafeMath.sol";
 contract MineralNFT is ERC721Metadata, Ownable {
     using SafeMath for uint256;
 
-    event ConsignItem(address owner, uint256 id);
     uint256 private _finalTokenId = 0;
-
-    mapping(uint256 => address) private _consignItemOwner;
 
     constructor (string memory name, string memory symbol) ERC721Metadata(name, symbol) public {
     }
@@ -30,27 +27,8 @@ contract MineralNFT is ERC721Metadata, Ownable {
         return id;
     }
 
-    function burnItem(address consignedOwner, uint256 tokenId) external {
-        require(consignedOwner == _consignItemOwner[tokenId], "token owner is not consigned owner");
+    function burnItem(uint256 tokenId) external {
         require(_isApprovedOrOwner(_msgSender(), tokenId), "msg.sender is not token owner");
-        delete _consignItemOwner[tokenId];
-
         _burn(_msgSender(), tokenId);
-    }
-
-    function consignItem(address to, uint256 tokenId) external {
-        require(owner == to, 'to is not contract owner');
-
-        _consignItemOwner[tokenId] = _msgSender();
-        transferFrom(_msgSender(), to, tokenId);
-
-        emit ConsignItem(_msgSender(), tokenId);
-    }
-
-    function getBackConsignedItem(address to, uint256 tokenId) external {
-        require(_consignItemOwner[tokenId] == to, 'to is not consigned token owner');
-
-        delete _consignItemOwner[tokenId];
-        transferFrom(_msgSender(), to, tokenId);
     }
 }
