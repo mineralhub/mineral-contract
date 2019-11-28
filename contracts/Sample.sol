@@ -1,4 +1,4 @@
-pragma solidity ^0.5.4;
+pragma solidity ^0.5.13;
 
 contract Sample {
     address private _owner;

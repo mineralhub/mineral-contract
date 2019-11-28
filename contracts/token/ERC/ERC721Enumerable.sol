@@ -1,5 +1,6 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.13;
 
+import "../../GSN/Context.sol";
 import "./IERC721Enumerable.sol";
 import "./ERC721.sol";
 import "./ERC165.sol";
@@ -8,7 +9,7 @@ import "./ERC165.sol";
  * @title ERC-721 Non-Fungible Token with optional enumeration extension logic
  * @dev See https://eips.ethereum.org/EIPS/eip-721
  */
-contract ERC721Enumerable is ERC165, ERC721, IERC721Enumerable {
+contract ERC721Enumerable is Context, ERC165, ERC721, IERC721Enumerable {
     // Mapping from owner to list of owned token IDs
     mapping(address => uint256[]) private _ownedTokens;
 
@@ -54,14 +55,6 @@ contract ERC721Enumerable is ERC165, ERC721, IERC721Enumerable {
      * @return uint256 representing the total amount of tokens
      */
     function totalSupply() public view returns (uint256) {
-        return _allTokens.length;
-    }
-
-        /**
-     * @dev Gets the total amount of tokens stored by the contract.
-     * @return uint256 representing the total amount of tokens
-     */
-    function _totalSupply() internal view returns (uint256) {
         return _allTokens.length;
     }
 

@@ -1,21 +1,31 @@
-pragma solidity ^0.5.4;
+pragma solidity ^0.5.13;
 
 import "./ERC/ERC20Burnable.sol";
 import "./ERC/ERC1132.sol";
+
+/*
+    [전체적인 피드백]
+    (오타) name = "Mineral" => name = "Mineral"
+    INITIAL_SUPPLY initialization 과학적 표기법(연산자 사용)
+    가스를 절약하기 위해 public 에서 external 으로 수정
+        (수정) transferWithLock()
+        (그 외) overriding public function of ERC1132
+    locked, lockedReason 명확성을 위해 이 곳에서 초기화를 해야한다고 하는데 필요한지 고려해볼 필요있음(문서에는 논의 사항)
+    Ownable 상속 받지 않은 것은 의도된것인지 (문서에서 논의 사항, 의문형)
+*/
 
 contract Mineral is ERC1132, ERC20Burnable {
     string internal constant ALREADY_LOCKED = 'Tokens already locked';
     string internal constant NOT_LOCKED = 'No tokens locked';
     string internal constant AMOUNT_ZERO = 'Amount can not be 0';
 
-    string public name = "Mienral";
+    string public name = "Mineral";
     string public symbol = "MNR";
     uint public decimals = 6;
-    uint public INITIAL_SUPPLY = 10000000000 * (10 ** decimals);
+    uint public INITIAL_SUPPLY = (10 ** 10) * (10 ** decimals);
 
     constructor() public {
-        _totalSupply = INITIAL_SUPPLY;
-        _balances[msg.sender] = INITIAL_SUPPLY;
+        _mint(_msgSender(), INITIAL_SUPPLY);
     }
 
     /**
@@ -33,17 +43,17 @@ contract Mineral is ERC1132, ERC20Burnable {
 
         // If tokens are already locked, then functions extendLock or
         // increaseLockAmount should be used to make any changes
-        require(tokensLocked(msg.sender, _reason) == 0, ALREADY_LOCKED);
+        require(tokensLocked(_msgSender(), _reason) == 0, ALREADY_LOCKED);
         require(_amount != 0, AMOUNT_ZERO);
 
-        if (locked[msg.sender][_reason].amount == 0)
-            lockReason[msg.sender].push(_reason);
+        if (locked[_msgSender()][_reason].amount == 0)
+            lockReason[_msgSender()].push(_reason);
 
         transfer(address(this), _amount);
 
-        locked[msg.sender][_reason] = lockToken(_amount, validUntil, false);
+        locked[_msgSender()][_reason] = lockToken(_amount, validUntil, false);
 
-        emit Locked(msg.sender, _reason, _amount, validUntil);
+        emit Locked(_msgSender(), _reason, _amount, validUntil);
         return true;
     }
 
@@ -56,7 +66,7 @@ contract Mineral is ERC1132, ERC20Burnable {
      * @param _time Lock time in seconds
      */
     function transferWithLock(address _to, bytes32 _reason, uint256 _amount, uint256 _time)
-        public
+        external
         returns (bool)
     {
         uint256 validUntil = now.add(_time); //solhint-disable-line
@@ -133,11 +143,11 @@ contract Mineral is ERC1132, ERC20Burnable {
         public
         returns (bool)
     {
-        require(tokensLocked(msg.sender, _reason) > 0, NOT_LOCKED);
+        require(tokensLocked(_msgSender(), _reason) > 0, NOT_LOCKED);
 
-        locked[msg.sender][_reason].validity = locked[msg.sender][_reason].validity.add(_time);
+        locked[_msgSender()][_reason].validity = locked[_msgSender()][_reason].validity.add(_time);
 
-        emit Locked(msg.sender, _reason, locked[msg.sender][_reason].amount, locked[msg.sender][_reason].validity);
+        emit Locked(_msgSender(), _reason, locked[_msgSender()][_reason].amount, locked[_msgSender()][_reason].validity);
         return true;
     }
 
@@ -150,12 +160,12 @@ contract Mineral is ERC1132, ERC20Burnable {
         public
         returns (bool)
     {
-        require(tokensLocked(msg.sender, _reason) > 0, NOT_LOCKED);
+        require(tokensLocked(_msgSender(), _reason) > 0, NOT_LOCKED);
         transfer(address(this), _amount);
 
-        locked[msg.sender][_reason].amount = locked[msg.sender][_reason].amount.add(_amount);
+        locked[_msgSender()][_reason].amount = locked[_msgSender()][_reason].amount.add(_amount);
 
-        emit Locked(msg.sender, _reason, locked[msg.sender][_reason].amount, locked[msg.sender][_reason].validity);
+        emit Locked(_msgSender(), _reason, locked[_msgSender()][_reason].amount, locked[_msgSender()][_reason].validity);
         return true;
     }
 
@@ -225,5 +235,23 @@ contract Mineral is ERC1132, ERC20Burnable {
         for (uint256 i = 0; i < lockReason[_of].length; i++) {
             unlockableTokens = unlockableTokens.add(tokensUnlockable(_of, lockReason[_of][i]));
         }
+    }
+
+    function safeTransfer(address _to, uint256 _amount, bytes calldata _data)
+        external
+    {
+        require(transfer(_to, _amount), "ERC20: failed transfer");
+        require(_checkOnERC20Received(_to, _amount, _data), "ERC20: transfer to non ERC20Receiver implementer");
+    }
+
+    function _checkOnERC20Received(address _to, uint256 _amount, bytes memory _data)
+        internal
+        returns (bool)
+    {
+        if (!_to.isContract()) {
+            return true;
+        }
+
+        return IERC20Receiver(_to).onERC20Received(_msgSender(), _amount, _data);
     }
 }
