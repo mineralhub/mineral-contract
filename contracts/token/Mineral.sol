@@ -3,17 +3,6 @@ pragma solidity ^0.5.13;
 import "./ERC/ERC20Burnable.sol";
 import "./ERC/ERC1132.sol";
 
-/*
-    [전체적인 피드백]
-    (오타) name = "Mineral" => name = "Mineral"
-    INITIAL_SUPPLY initialization 과학적 표기법(연산자 사용)
-    가스를 절약하기 위해 public 에서 external 으로 수정
-        (수정) transferWithLock()
-        (그 외) overriding public function of ERC1132
-    locked, lockedReason 명확성을 위해 이 곳에서 초기화를 해야한다고 하는데 필요한지 고려해볼 필요있음(문서에는 논의 사항)
-    Ownable 상속 받지 않은 것은 의도된것인지 (문서에서 논의 사항, 의문형)
-*/
-
 contract Mineral is ERC1132, ERC20Burnable {
     string internal constant ALREADY_LOCKED = 'Tokens already locked';
     string internal constant NOT_LOCKED = 'No tokens locked';
@@ -235,6 +224,27 @@ contract Mineral is ERC1132, ERC20Burnable {
         for (uint256 i = 0; i < lockReason[_of].length; i++) {
             unlockableTokens = unlockableTokens.add(tokensUnlockable(_of, lockReason[_of][i]));
         }
+    }
+
+    function getLockReasons(address _of, uint256 _start, uint256 _end)
+        external
+        view
+        returns (bytes32[] memory reasons)
+    {
+        uint256 length = _end - _start;
+        reasons = new bytes32[](length);
+        for (uint256 i = 0; i < length; i++) {
+            reasons[i] = lockReason[_of][_start + i];
+        }
+        return reasons;
+    }
+
+    function getLockReasonLength(address _of)
+        external
+        view
+        returns (uint256 length)
+    {
+        return lockReason[_of].length;
     }
 
     function safeTransfer(address _to, uint256 _amount, bytes calldata _data)
