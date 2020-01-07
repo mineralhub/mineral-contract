@@ -1,4 +1,4 @@
-pragma solidity ^0.5.13;
+pragma solidity ^0.5.6;
 
 import "./GSN/Context.sol";
 import "./token/MineralNFT.sol";
@@ -9,7 +9,6 @@ import "./token/ERC/IERC20Receiver.sol";
 import "./utils/Ownable.sol";
 import "./utils/BytesLib.sol";
 import "./math/SafeMath.sol";
-
 
 contract MineralNFTMarket is Context, IERC721Receiver, IERC20Receiver, Ownable {
     using SafeMath for uint256;

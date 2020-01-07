@@ -1,4 +1,4 @@
-pragma solidity ^0.5.13;
+pragma solidity ^0.5.6;
 
 import "../../GSN/Context.sol";
 import "./IERC721.sol";
