@@ -1,4 +1,4 @@
-pragma solidity ^0.5.6;
+pragma solidity ^0.5.11;
 
 import "./ERC/ERC20Burnable.sol";
 import "./ERC/ERC1132.sol";
@@ -150,6 +150,7 @@ contract Mineral is ERC1132, ERC20Burnable {
         returns (bool)
     {
         require(tokensLocked(_msgSender(), _reason) > 0, NOT_LOCKED);
+        require(_amount != 0, AMOUNT_ZERO);
         transfer(address(this), _amount);
 
         locked[_msgSender()][_reason].amount = locked[_msgSender()][_reason].amount.add(_amount);
@@ -231,6 +232,7 @@ contract Mineral is ERC1132, ERC20Burnable {
         view
         returns (bytes32[] memory reasons)
     {
+        require(_end > _start, "_end is bigger than _start");
         uint256 length = _end - _start;
         reasons = new bytes32[](length);
         for (uint256 i = 0; i < length; i++) {

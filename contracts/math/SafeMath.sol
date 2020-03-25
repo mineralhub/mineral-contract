@@ -1,4 +1,4 @@
-pragma solidity ^0.5.6;
+pragma solidity ^0.5.11;
 
 /**
  * @dev Wrappers over Solidity's arithmetic operations with added overflow
@@ -152,5 +152,12 @@ library SafeMath {
     function mod(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
         require(b != 0, errorMessage);
         return a % b;
+    }
+
+    function divCeil(uint256 a, uint256 b) internal pure returns (uint256) {
+        require(b > 0, "SafeMath: division by zero");
+        uint256 c = (a + b - 1) / b;
+
+        return c;
     }
 }

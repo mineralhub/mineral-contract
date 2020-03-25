@@ -1,8 +1,10 @@
-pragma solidity ^0.5.6;
+pragma solidity ^0.5.11;
 
 import "./Exchange.sol";
+import "../utils/Address.sol";
 
-contract Factory is IFactory{
+contract Factory is IFactory {
+	using Address for address;
 
 	// Global Variables
 	uint256 public tokenCount;
@@ -21,6 +23,7 @@ contract Factory is IFactory{
 	function createExchange(address token) external returns (address) {
 		require(token != address(0), "Token address cannot be zero.");
 		require(_tokenToExchange[token] == address(0), "Exchange for token already created.");
+		require(token.isContract(), "token is not contract");
 		Exchange exchange = new Exchange(token);
 		_tokenToExchange[token] = address(exchange);
 		_exchangeToToken[address(exchange)] = token;

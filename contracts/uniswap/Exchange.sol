@@ -1,7 +1,8 @@
-pragma solidity ^0.5.6;
+pragma solidity ^0.5.11;
 
 import "../math/SafeMath.sol";
 import "../token/ERC/IERC20.sol";
+import "../utils/ReentrancyGuard.sol";
 
 interface IFactory {
 	function getExchange(address tokenAddr) external view returns (address);
@@ -13,12 +14,12 @@ interface IExchange {
 	function ethToTokenTransferOutput(uint256 tokensBought, uint256 deadline, address recipient) external payable returns (uint256);
 }
 
-contract Exchange is IExchange {
+contract Exchange is IExchange, ReentrancyGuard {
 	using SafeMath for uint256;
 	// Global Varaibles
-	bytes32 public name;  // Uniswap V1
-	bytes32 public symbol;  // UNI-V1
-	uint256 public decimals;  // 18
+	string public name;  // Uniswap V1
+	string public symbol;  // UNI-V1
+	uint8 public decimals;  // 18
 	uint256 public totalSupply;  // total number of NUI in existence
 	mapping(address => uint256) internal _balances;  // UNI balance of an address
 	mapping(address => mapping(address => uint256)) internal _allowances;  // UNI allowance of on address on another
@@ -95,19 +96,19 @@ contract Exchange is IExchange {
 			uint256 tokenReserve = IERC20(_token).balanceOf(address(this));
 			uint256 tokenAmount = msg.value.mul(tokenReserve).div(ethReserve).add(1);
 			uint256 liquidityMinted = msg.value.mul(totalLiquidity).div(ethReserve);
-			require(maxTokens >= tokenAmount, "");
-			require(liquidityMinted >= minLiquidity, "");
+			require(maxTokens >= tokenAmount, "maximum token must be larger or equal than token amount.");
+			require(liquidityMinted >= minLiquidity, "liquidity minted must be larger or equal than minimum liquidity.");
 
 			_balances[msg.sender] = _balances[msg.sender].add(liquidityMinted);
 			totalSupply = totalLiquidity.add(liquidityMinted);
-			require(IERC20(_token).transferFrom(msg.sender, address(this), tokenAmount), "");
+			require(IERC20(_token).transferFrom(msg.sender, address(this), tokenAmount), "ETH transfer from msg.sender to self failed.");
 
 			emit AddLiquidity(msg.sender, msg.value, tokenAmount);
 			emit Transfer(address(0), msg.sender, liquidityMinted);
 			return liquidityMinted;
 		} else {
-			require(_factory != address(0), "Factory address must be set first.");
-			require(_token != address(0), "Token address cannot be zero.");
+			//require(_factory != address(0), "Factory address must be set first.");
+			//require(_token != address(0), "Token address cannot be zero.");
 			require(msg.value >= MIN_ETH_REQUIRE, "Insufficient Eth sent.");
 			require(IFactory(_factory).getExchange(_token) == address(this), "Token does not match with the factory.");
 
@@ -259,7 +260,7 @@ contract Exchange is IExchange {
 		require(ethBought >= minETH, "Minimum ETH must be must be smaller than ETH bought.");
 
 		recipient.transfer(ethBought);
-		require(IERC20(_token).transferFrom(buyer, address(this), tokensSold));
+		require(IERC20(_token).transferFrom(buyer, address(this), tokensSold), "Transfer failed.");
 
 		emit EthPurchase(buyer, tokensSold, ethBought);
 		return ethBought;
@@ -296,7 +297,7 @@ contract Exchange is IExchange {
 
 		require(maxTokens >= tokensSold, "Tokens sold must always > 0.");
 		recipient.transfer(ethBought);
-		require(IERC20(_token).transferFrom(buyer, address(this), tokensSold));
+		require(IERC20(_token).transferFrom(buyer, address(this), tokensSold), "Transfer failed.");
 
 		emit EthPurchase(buyer, tokensSold, ethBought);
         return tokensSold;
@@ -333,7 +334,7 @@ contract Exchange is IExchange {
 		return _tokenToEthOutput(ethBought, maxTokens, deadline, msg.sender, recipient);
 	}
 
-	function _tokenToTokenInput(uint256 tokensSold, uint256 minTokensBought, uint256 minETHbought, uint256 deadline, address buyer, address recipient, address exchangeAddr) ensureDeadlineHasntPassed(deadline) internal returns (uint256) {
+	function _tokenToTokenInput(uint256 tokensSold, uint256 minTokensBought, uint256 minETHbought, uint256 deadline, address buyer, address recipient, address exchangeAddr) ensureDeadlineHasntPassed(deadline) internal nonReentrant returns (uint256) {
 		require(tokensSold > 0, "Tokens sold must be larger than zero.");
 		require(minTokensBought > 0, "Minimum tokens bought must be larger than zero.");
 		require(minETHbought > 0, "Minimum ETH bought must be larger than zero.");
@@ -347,7 +348,7 @@ contract Exchange is IExchange {
 		uint256 tokensBought = IExchange(exchangeAddr).ethToTokenTransferInput.value(ethBought)(minTokensBought, deadline, recipient);
 
 		emit EthPurchase(buyer, tokensSold, ethBought);
-    return tokensBought;
+    	return tokensBought;
 	}
 
 	// @notice Convert Tokens (self.token) to Tokens (tokenAddr).
@@ -373,8 +374,8 @@ contract Exchange is IExchange {
 	// @param tokenAddr The address of the token being purchased.
 	// @return Amount of Tokens (tokenAddr) bought.
 	function tokenToTokenTransferInput(uint256 tokensSold, uint256 minTokensBought, uint256 minETHbought, uint256 deadline, address recipient, address tokenAddr) external returns (uint256) {
-    address exchangeAddr = IFactory(_factory).getExchange(tokenAddr);
-    return _tokenToTokenInput(tokensSold, minTokensBought, minETHbought, deadline, msg.sender, recipient, exchangeAddr);
+    	address exchangeAddr = IFactory(_factory).getExchange(tokenAddr);
+    	return _tokenToTokenInput(tokensSold, minTokensBought, minETHbought, deadline, msg.sender, recipient, exchangeAddr);
 	}
 
 	function _tokenToTokenOutput(uint256 tokensBought, uint256 maxtokensSold, uint256 maxETHsold, uint256 deadline, address buyer, address recipient, address exchangeAddr) ensureDeadlineHasntPassed(deadline) internal returns (uint256) {
@@ -410,18 +411,18 @@ contract Exchange is IExchange {
 		return _tokenToTokenOutput(tokensBought, maxtokensSold, maxETHsold, deadline, msg.sender, msg.sender, exchangeAddr);
 	}
 
-	// @notice Convert Tokens (self.token) to Tokens (token_addr) and transfers Tokens (token_addr) to recipient.
+	// @notice Convert Tokens (self.token) to Tokens (tokenAddr) and transfers Tokens (tokenAddr) to recipient.
 	// @dev User specifies maximum input and exact output.
-	// @param tokens_bought Amount of Tokens (token_addr) bought.
-	// @param max_tokens_sold Maximum Tokens (self.token) sold.
-	// @param max_eth_sold Maximum ETH purchased as intermediary.
+	// @param tokensBought Amount of Tokens (tokenAddr) bought.
+	// @param maxtokensSold Maximum Tokens (self.token) sold.
+	// @param maxETHsold Maximum ETH purchased as intermediary.
 	// @param deadline Time after which this transaction can no longer be executed.
 	// @param recipient The address that receives output ETH.
-	// @param token_addr The address of the token being purchased.
+	// @param tokenAddr The address of the token being purchased.
 	// @return Amount of Tokens (self.token) sold.
-	function tokenToTokenTransferOutput(uint256 tokens_bought, uint256 max_tokens_sold, uint256 max_eth_sold, uint256 deadline, address recipient, address token_addr) public returns (uint256) {
-		address exchange_addr = IFactory(_factory).getExchange(token_addr);
-		return _tokenToTokenOutput(tokens_bought, max_tokens_sold, max_eth_sold, deadline, msg.sender, recipient, exchange_addr);
+	function tokenToTokenTransferOutput(uint256 tokensBought, uint256 maxtokensSold, uint256 maxETHsold, uint256 deadline, address recipient, address tokenAddr) public returns (uint256) {
+		address exchangeAddr = IFactory(_factory).getExchange(tokenAddr);
+		return _tokenToTokenOutput(tokensBought, maxtokensSold, maxETHsold, deadline, msg.sender, recipient, exchangeAddr);
 	}
 
 
@@ -435,7 +436,7 @@ contract Exchange is IExchange {
 	// @param exchangeAddr The address of the exchange for the token being purchased.
 	// @return Amount of Tokens (exchangeAddr.token) bought.
 	function tokenToExchangeSwapInput(uint256 tokensSold, uint256 minTokensBought, uint256 minETHbought, uint256 deadline, address exchangeAddr) external returns (uint256) {
-    return _tokenToTokenInput(tokensSold, minTokensBought, minETHbought, deadline, msg.sender, msg.sender, exchangeAddr);
+    	return _tokenToTokenInput(tokensSold, minTokensBought, minETHbought, deadline, msg.sender, msg.sender, exchangeAddr);
 	}
 
 	// @notice Convert Tokens (self.token) to Tokens (exchangeAddr.token) and transfers Tokens (exchangeAddr.token) to recipient.
@@ -449,8 +450,8 @@ contract Exchange is IExchange {
 	// @param exchangeAddr The address of the exchange for the token being purchased.
 	// @return Amount of Tokens (exchangeAddr.token) bought.
 	function tokenToExchangeTransferInput(uint256 tokensSold, uint256 minTokensBought, uint256 minETHbought, uint256 deadline, address recipient, address exchangeAddr) external returns (uint256) {
-    require(recipient != address(this), "Recipient cannot be self.");
-    return _tokenToTokenInput(tokensSold, minTokensBought, minETHbought, deadline, msg.sender, recipient, exchangeAddr);
+    	require(recipient != address(this), "Recipient cannot be self.");
+    	return _tokenToTokenInput(tokensSold, minTokensBought, minETHbought, deadline, msg.sender, recipient, exchangeAddr);
 	}
 
 	// @notice Convert Tokens (self.token) to Tokens (exchangeAddr.token).
@@ -535,6 +536,7 @@ contract Exchange is IExchange {
 	}
 
 	function transfer(address to, uint256 value) public returns (bool) {
+        require(to != address(0), "Recipient cannot be zero address.");
 		_balances[msg.sender] = _balances[msg.sender].sub(value);
 		_balances[to] = _balances[to].add(value);
 
@@ -543,9 +545,10 @@ contract Exchange is IExchange {
 	}
 
 	function transferFrom(address from, address to, uint256 value) public returns (bool) {
+        require(to != address(0), "Recipient cannot be zero address.");
 		_balances[from] = _balances[from].sub(value);
-		_balances[to] = _balances[from].add(value);
-		_allowances[from][msg.sender] = _balances[from].sub(value);
+		_balances[to] = _balances[to].add(value);
+		_allowances[from][msg.sender] = _allowances[from][msg.sender].sub(value);
 
 		emit Transfer(from, to, value);
 		return true;
@@ -565,7 +568,7 @@ contract Exchange is IExchange {
 	// @notice Convert ETH to Tokens.
 	// @dev User specifies exact input (msg.value).
 	// @dev User cannot specify minimum output or deadline.
-	function () external payable {
-		_ethToTokenInput(msg.value, 1, now, msg.sender, msg.sender);
-	}
+	// function () external payable {
+	// 	_ethToTokenInput(msg.value, 1, now, msg.sender, msg.sender);
+	// }
 }
